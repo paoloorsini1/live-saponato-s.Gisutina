@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Calcetto Saponato Santa Giustina</title>
+  <style>
+    /* Stile moderno e pulito */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      max-width: 960px;
+      margin: 30px auto;
+      padding: 20px;
+      color: #222;
+    }
+
+    h1, h2 {
+      color: #1a73e8;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 8px rgb(26 115 232 / 0.1);
+      margin-bottom: 25px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: center;
+      padding: 12px 10px;
+      border-bottom: 1px solid #eee;
+      user-select: none;
+    }
+
+    th {
+      background-color: #1a73e8;
+      color: white;
+      font-weight: 600;
+    }
+
+    tbody tr:hover {
+      background-color: #f5f8ff;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    td.editable {
+      cursor: pointer;
+      background-color: #e8f0fe;
+      transition: background-color 0.2s;
+    }
+
+    td.editable:focus {
+      outline: none;
+      background-color: #d2e3fc;
+    }
+
+    form {
+      display: none;
+      margin-bottom: 30px;
+      background: white;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgb(26 115 232 / 0.1);
+      border-radius: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      align-items: center;
+    }
+
+    form input, form button {
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      transition: border-color 0.3s;
+    }
+
+    form input:focus {
+      border-color: #1a73e8;
+      outline: none;
+    }
+
+    form button {
+      background-color: #1a73e8;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    form button:hover {
+      background-color: #155ab6;
+    }
+
+    #btn-container {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-bottom: 30px;
+      align-items: center;
+    }
+
+    button#edit-btn, button#reset-btn {
+      background-color: white;
+      border: 2px solid #1a73e8;
+      color: #1a73e8;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 10px 20px;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background-color 0.3s, color 0.3s;
+      user-select: none;
+    }
+
+    button#edit-btn:hover, button#reset-btn:hover {
+      background-color: #1a73e8;
+      color: white;
+    }
+
+    select#girone-select {
+      font-size: 1rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+
+  </style>
+</head>
+<body>
+
+  <h1>Calcetto Saponato Santa Giustina - Girone <span id="girone-num">1</span></h1>
+
+  <div id="btn-container">
+    <button id="edit-btn">Modifica</button>
+    <button id="reset-btn" style="display:none;">Reset Partite</button>
+    <select id="girone-select" title="Seleziona girone">
+      <option value="1">Girone 1</option>
+      <option value="2">Girone 2</option>
+      <option value="3">Girone 3</option>
+    </select>
+  </div>
+
+  <form id="match-form">
+    <input type="text" id="team1" placeholder="Squadra Casa" required />
+    <input type="text" id="score1" placeholder="Gol Casa (numero o -)" required />
+    <input type="text" id="score2" placeholder="Gol Trasferta (numero o -)" required />
+    <input type="text" id="team2" placeholder="Squadra Trasferta" required />
+    <input type="time" id="match-time" required />
+    <button type="submit">Aggiungi Partita</button>
+  </form>
+
+  <h2>Classifica</h2>
+  <table id="classifica">
+    <thead>
+      <tr>
+        <th>Squadra</th>
+        <th>PG</th>
+        <th>Punti</th>
+        <th>GF</th>
+        <th>GS</th>
+        <th>Diff</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Tabellone Partite</h2>
+  <table id="match-table">
+    <thead>
+      <tr>
+        <th>Casa</th>
+        <th>Gol Casa</th>
+        <th>Gol Trasferta</th>
+        <th>Trasferta</th>
+        <th>Orario</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+  import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCnQNv3xREfpnub9rxERLQHUgKVu639POI",
+    authDomain: "live-saponato.firebaseapp.com",
+    databaseURL: "https://live-saponato-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "live-saponato",
+    storageBucket: "live-saponato.appspot.com",
+    messagingSenderId: "540246459618",
+    appId: "1:540246459618:web:18a7e7f2368c2198a58abb"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Prendo girone da URL oppure default a '1'
+  function getGironeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('girone') || '1';
+  }
+
+  let girone = getGironeFromUrl();
+  document.getElementById('girone-num').textContent = girone;
+
+  const gironeSelect = document.getElementById('girone-select');
+  gironeSelect.value = girone;
+
+  // Nodo firebase dinamico
+  let nodoFirebase = girone === '1' ? 'partite' : `partite_girone${girone}`;
+  let partiteRef = ref(db, nodoFirebase);
+
+  let partite = [];
+  const stats = {};
+  let isEditable = false;
+
+  // Carica dati da Firebase e aggiorna tabella/classifica
+  function caricaDati() {
+    onValue(partiteRef, (snapshot) => {
+      const dati = snapshot.val();
+      partite = dati ? dati : [];
+      aggiornaTabellone();
+      aggiornaClassifica();
+    });
+  }
+
+  // Salva dati in Firebase
+  function salvaDati() {
+    set(partiteRef, partite);
+  }
+
+  // Aggiorna tabella partite
+  function aggiornaTabellone() {
+    const tbody = document.querySelector('#match-table tbody');
+    tbody.innerHTML = '';
+
+    partite.forEach(({team1, score1, score2, team2, time}, idx) => {
+      const tr = document.createElement('tr');
+
+      if (isEditable) {
+        tr.innerHTML = `
+          <td contenteditable="true" data-index="${idx}" data-field="team1" class="editable">${team1}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="score1" class="editable">${score1}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="score2" class="editable">${score2}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="team2" class="editable">${team2}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="time" class="editable">${time}</td>
+        `;
+      } else {
+        tr.innerHTML = `
+          <td>${team1}</td>
+          <td>${score1}</td>
+          <td>${score2}</td>
+          <td>${team2}</td>
+          <td>${time}</td>
+        `;
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    if (isEditable) {
+      document.querySelectorAll('td.editable').forEach(td => {
+        td.addEventListener('blur', aggiornaCampo);
+        td.addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            td.blur();
+          }
+        });
+      });
+    }
+  }
+
+  // Aggiorna campo modificato
+  function aggiornaCampo(e) {
+    const td = e.target;
+    const idx = td.getAttribute('data-index');
+    const field = td.getAttribute('data-field');
+    let val = td.innerText.trim();
+
+    if (field === "score1" || field === "score2") {
+      if (val !== '-' && !/^\d+$/.test(val)) {
+        alert("Inserisci solo numeri interi positivi o '-' per partita non giocata");
+        td.innerText = partite[idx][field];
+        return;
+      }
+    }
+
+    partite[idx][field] = val;
+    aggiornaClassifica();
+    salvaDati();
+  }
+
+  // Aggiorna la classifica calcolando punti e gol
+  function aggiornaClassifica() {
+    for (let key in stats) {
+      delete stats[key];
+    }
+
+    partite.forEach(({team1, team2, score1, score2}) => {
+      if (!stats[team1]) stats[team1] = {punti: 0, gf: 0, gs: 0, pg: 0};
+      if (!stats[team2]) stats[team2] = {punti: 0, gf: 0, gs: 0, pg: 0};
+
+      if (score1 !== '-' && score2 !== '-') {
+        const s1 = parseInt(score1, 10);
+        const s2 = parseInt(score2, 10);
+        stats[team1].pg++;
+        stats[team2].pg++;
+        stats[team1].gf += s1;
+        stats[team1].gs += s2;
+        stats[team2].gf += s2;
+        stats[team2].gs += s1;
+
+        if (s1 > s2) stats[team1].punti += 3;
+        else if (s1 < s2) stats[team2].punti += 3;
+        else {
+          stats[team1].punti += 1;
+          stats[team2].punti += 1;
+        }
+      }
+    });
+
+    // Trasforma in array e ordina
+    const classificaArr = Object.entries(stats).map(([team, stat]) => ({
+      team,
+      ...stat,
+      diff: stat.gf - stat.gs
+    }));
+
+    classificaArr.sort((a, b) => {
+      if (b.punti !== a.punti) return b.punti - a.punti;
+      if (b.diff !== a.diff) return b.diff - a.diff;
+      return b.gf - a.gf;
+    });
+
+    // Mostra tabella classifica
+    const tbody = document.querySelector('#classifica tbody');
+    tbody.innerHTML = '';
+    classificaArr.forEach(({team, pg, punti, gf, gs, diff}) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${team}</td>
+        <td>${pg}</td>
+        <td>${punti}</td>
+        <td>${gf}</td>
+        <td>${gs}</td>
+        <td>${diff}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Form e pulsanti
+  const form = document.getElementById('match-form');
+  const editBtn = document.getElementById('edit-btn');
+  const resetBtn = document.getElementById('reset-btn');
+
+  // Password per modificare
+  const PASSWORD = "paolo";
+
+  // Stato modifica
+  function toggleModifica() {
+    if (!isEditable) {
+      // Chiedo password
+      const pwd = prompt("Inserisci la password per modificare:");
+      if (pwd !== PASSWORD) {
+        alert("Password errata!");
+        return;
+      }
+      isEditable = true;
+      editBtn.textContent = "Salva";
+      resetBtn.style.display = "inline-block";
+      form.style.display = "grid";
+    } else {
+      // Salvo e disabilito modifica
+      isEditable = false;
+      editBtn.textContent = "Modifica";
+      resetBtn.style.display = "none";
+      form.style.display = "none";
+      salvaDati();
+      aggiornaTabellone();
+    }
+  }
+
+  editBtn.addEventListener('click', toggleModifica);
+
+  resetBtn.addEventListener('click', () => {
+    if (confirm("Sei sicuro di voler resettare tutte le partite?")) {
+      partite = [];
+      salvaDati();
+      aggiornaTabellone();
+      aggiornaClassifica();
+    }
+  });
+
+  // Aggiungi partita dal form
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const t1 = document.getElementById('team1').value.trim();
+    const t2 = document.getElementById('team2').value.trim();
+    const s1 = document.getElementById('score1').value.trim();
+    const s2 = document.getElementById('score2').value.trim();
+    const time = document.getElementById('match-time').value;
+
+    if (!t1 || !t2 || !s1 || !s2 || !time) {
+      alert("Compila tutti i campi");
+      return;
+    }
+
+    if ((s1 !== '-' && !/^\d+$/.test(s1)) || (s2 !== '-' && !/^\d+$/.test(s2))) {
+      alert("Gol devono essere numeri o '-'");
+      return;
+    }
+
+    partite.push({team1: t1, score1: s1, score2: s2, team2: t2, time});
+    salvaDati();
+    aggiornaTabellone();
+    aggiornaClassifica();
+    form.reset();
+  });
+
+  // Cambio girone da select
+  gironeSelect.addEventListener('change', () => {
+    const val = gironeSelect.value;
+    window.location.search = '?girone=' + val;
+  });
+
+  // Carica dati iniziale
+  caricaDati();
+
+</script>
+
+</body>
+</html>
